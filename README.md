@@ -9,7 +9,6 @@ Built around a **constrained-cost architecture**: to run reliably on free cloud 
 ### 🌐 Links
 - **Live Demo:** [aura-rag-research-assistant.vercel.app](https://aura-rag-research-assistant.vercel.app/)
 - **Repository:** [github.com/Kulkarnisamruddh/Aura-RAG-Research-assistant](https://github.com/Kulkarnisamruddh/Aura-RAG-Research-assistant)
-- **Technical Report:** [`Aura_Project_Report.md`](Aura_Project_Report.md)
 
 ---
 

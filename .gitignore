@@ -17,6 +17,8 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+Aura_Project_Report.md
+
 *.suo
 *.ntvs*
 *.njsproj
@@ -34,3 +36,4 @@ dist/
 !.env.example
 
 .DS_Store
+Aura_Project_Report.md
