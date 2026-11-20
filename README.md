@@ -1,118 +1,125 @@
 # 🔬 Aura — Document RAG Research Assistant
 
-A full-stack RAG (Retrieval-Augmented Generation) application that lets you upload documents and ask questions answered strictly from those documents.
+A full-stack RAG (Retrieval-Augmented Generation) application that lets users upload documents and ask questions answered strictly from those documents.
 
-To run this project on free cloud hosting without crashing the server, I designed the app so that **AI embeddings run directly inside the user's browser** instead of on the backend. This keeps the server lightweight, free to host, and fast.
+Built around a **constrained-cost architecture**: to run reliably on free cloud hosting (512 MB RAM limit) without paid embedding APIs, vector embeddings are generated directly inside the user's browser using Web Workers and ONNX Runtime Web.
 
 ---
 
 ### 🌐 Links
 - **Live Demo:** [aura-rag-research-assistant.vercel.app](https://aura-rag-research-assistant.vercel.app/)
-- **GitHub:** [github.com/Kulkarnisamruddh/Aura-RAG-Research-assistant](https://github.com/Kulkarnisamruddh/Aura-RAG-Research-assistant)
-- **Technical Report & Interview Guide:** [`Aura_Project_Report.md`](Aura_Project_Report.md)
+- **Repository:** [github.com/Kulkarnisamruddh/Aura-RAG-Research-assistant](https://github.com/Kulkarnisamruddh/Aura-RAG-Research-assistant)
+- **Technical Report:** [`Aura_Project_Report.md`](Aura_Project_Report.md)
 
 ---
 
-## 💡 Why In-Browser Embeddings? (The Main Design Decision)
+## ✨ Features
 
-Most RAG apps generate vector embeddings on the backend server or pay for an API like OpenAI. 
-
-When hosting on a free platform like Render, you only get **512 MB of RAM**. Loading an AI model in Node.js easily exceeds this limit and crashes the server.
-
-**How I solved it:**
-- When a user opens the app, the browser downloads a lightweight model (`all-MiniLM-L6-v2`, ~23 MB) once.
-- The model runs inside a background browser thread (Web Worker) using `@xenova/transformers`.
-- The user's device creates the embeddings, so the server never runs out of memory.
-
-**Trade-offs (Honest Pros & Cons):**
-- ✅ **Pros:** Zero server RAM issues, zero embedding API costs, and scales easily across users.
-- ⚠️ **Cons:** First-time load takes a few seconds to download the 23 MB model; processing speed depends on the user's computer.
+- 📄 **Multi-Format Ingestion:** Supports uploading `.pdf`, `.txt`, and `.md` files.
+- ⚡ **In-Browser Embeddings:** Generates 384-dimensional dense vectors client-side via `@xenova/transformers` (`all-MiniLM-L6-v2`) inside a dedicated Web Worker.
+- 🔍 **Vector Search:** Fast approximate nearest neighbor search via Supabase (PostgreSQL + `pgvector`) using an HNSW cosine distance index.
+- 💬 **Streaming Responses:** Real-time token streaming using Server-Sent Events (SSE) powered by Groq (`openai/gpt-oss-120b`).
+- 🛡️ **Citation Guardrails:** Strict prompt enforcement requiring `[Source N]` tags and a post-stream regex auditor to warn users of unbacked claims.
+- 💰 **Early-Exit Token Protection:** Skips LLM inference entirely if no document chunks meet the 0.20 similarity threshold, saving API tokens.
+- 🔐 **Multi-Tenant Security:** Server-side JWT validation (`auth.getUser()`) and PostgreSQL Row-Level Security (RLS) guarantee users only access their own documents.
+- 🚫 **Duplicate Prevention:** Client-side SHA-256 hashing detects and rejects duplicate file re-uploads with a `409 Conflict`.
 
 ---
 
-## ⚙️ How It Works
+## 💡 Why In-Browser Embeddings?
+
+Most RAG applications generate vector embeddings on the backend server or pay for an API like OpenAI. 
+
+On free hosting tiers (such as Render's 512 MB RAM limit), loading an in-memory transformer model inside Node.js causes immediate out-of-memory crashes under concurrent traffic.
+
+**The Solution:**
+- On first visit, the client browser downloads a quantized `all-MiniLM-L6-v2` model (~23 MB) once and caches it.
+- A background browser Web Worker computes embeddings on the user's device.
+- The Node.js server stays lightweight (~40 MB RAM) and handles only routing, vector queries, and streaming.
+
+**Trade-offs:**
+- ✅ **Pros:** Zero server RAM pressure, zero embedding API costs, and scales client-side.
+- ⚠️ **Cons:** First visit requires downloading the 23 MB model bundle; embedding speed depends on the user's device.
+
+---
+
+## ⚙️ Architecture & Data Flow
 
 ```
 1. Browser (React 19)
-   ├── You upload a file (PDF, TXT, MD)
-   ├── Checks file hash to prevent duplicate uploads
-   ├── Splits text into 300-word chunks
-   └── Web Worker converts chunks into 384-dimension vectors
+   ├── File uploaded (PDF, TXT, MD)
+   ├── SHA-256 hash generated to check for duplicates
+   ├── Text split into 300-word sliding window chunks
+   └── Web Worker generates 384-dim vectors (all-MiniLM-L6-v2)
          │
-         ▼ (Sends vectors + Supabase Login Token)
-2. Backend (Node.js & Express)
-   ├── Verifies the user's login token with Supabase
-   ├── Applies rate limits (50 requests per 15 minutes)
-   └── Saves chunks and vectors to Supabase
-         │
-         ▼
-3. Vector Search (Supabase PostgreSQL + pgvector)
-   ├── Uses an HNSW cosine index to quickly find the top 5 relevant chunks
-   └── Early exit: If no chunk scores above 0.20, stops early to save AI tokens
+         ▼ (Sends vectors + Supabase JWT)
+2. Express API (Node.js)
+   ├── Rate limiting (50 requests / 15 minutes per IP)
+   ├── Validates JWT with Supabase auth.getUser()
+   └── Stores chunks and vectors in Supabase
          │
          ▼
-4. Answer Generation (Groq)
-   ├── Groq LLM (gpt-oss-120b) generates the answer using ONLY the found text
-   ├── Streams the answer back word-by-word (Server-Sent Events)
-   └── Guardrail check: Warns if the answer didn't cite its sources [Source 1]
+3. Vector Database (Supabase PostgreSQL + pgvector)
+   ├── HNSW index searches top 5 chunks (similarity threshold: 0.20)
+   └── Early exit: Bypasses LLM if no chunks meet threshold
+         │
+         ▼
+4. LLM Inference (Groq)
+   ├── Groq generates response based ONLY on retrieved context
+   ├── Streams tokens via Server-Sent Events (SSE)
+   └── Post-stream regex check verifies [Source N] citation tags
 ```
 
 ---
 
-## 🧪 Evaluation & Testing
+## 🔌 API Endpoints
 
-I built a simple automated test script to check if the app answers accurately and cites sources correctly.
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/health` | Server health check | No |
+| `POST` | `/api/upload` | Validates JWT, checks file hash, saves document chunks & embeddings | Yes (Bearer JWT) |
+| `POST` | `/api/chat` | Runs pgvector search, queries Groq LLM, streams response via SSE | Yes (Bearer JWT) |
 
-Run the test locally:
+---
+
+## 🧪 Evaluation
+
+A lightweight automated test script verifies response faithfulness, relevance, citation compliance, and out-of-domain refusals.
+
 ```bash
 npm run eval
 ```
 
 Results are saved to [`eval/eval_report.md`](eval/eval_report.md).
 
-### Latest Test Results (5 Sample Questions)
+### Latest Benchmark Results (5 Test Cases)
 
-| Metric | Score | What It Means |
-| :--- | :--- | :--- |
-| **Faithfulness** | **5.0 / 5.0** | Answers only use facts from the text (no made-up facts) |
-| **Relevance** | **5.0 / 5.0** | Answers directly answer the question |
-| **Citation Check** | **100%** | Properly includes `[Source N]` tags |
-| **Refusal Check** | **100%** | Correctly says "I cannot find the answer" for out-of-domain questions |
-| **Speed / Latency** | **~1.3 sec** | Fast response streaming via Groq |
+| Metric | Score | Target | Interpretation |
+| :--- | :--- | :--- | :--- |
+| **Faithfulness** | **5.0 / 5.0** | $\ge 4.5$ | Answers strictly rely on provided context |
+| **Relevance** | **5.0 / 5.0** | $\ge 4.5$ | Answers directly address the user's query |
+| **Citation Compliance** | **100%** | $\ge 90\%$ | Correctly includes `[Source N]` attribution |
+| **Out-of-Domain Refusal** | **100%** | $100\%$ | Refuses when context is missing |
+| **Average Latency** | **1,332 ms** | $< 1,500$ ms | Token streaming speed |
 
-### 📌 Honest Notes on the Evaluation
-
-- **Small Test Set (5 questions):** This is a quick sanity check to catch broken prompts or formatting issues when changing code. It is a directional smoke test, not a full scientific benchmark.
-- **Tested with Prepared Context:** The test gives the AI pre-selected text chunks directly (`eval/dataset.json`) to test whether the AI follows instructions, separate from testing database search quality.
-- **The AI Judges Itself:** The same model (`gpt-oss-120b`) generates the answer and scores it. While AI models can have a slight bias toward their own writing style, this is a practical and free way to catch obvious mistakes automatically.
-
----
-
-## 🔒 Security & Protection
-
-- **Secure Login:** Uses Supabase Auth (JWT). The backend verifies the token directly with Supabase—it never trusts user IDs sent in the request body.
-- **Data Privacy (RLS):** Row-Level Security in PostgreSQL ensures each user can only read and write their own documents and chat history.
-- **No Duplicate Files:** The app creates a SHA-256 hash of each file in the browser before uploading. If you already uploaded it, it rejects the file (HTTP 409).
-- **Rate Limiting:** Limited to 50 requests every 15 minutes per IP address to prevent spam.
-- **Hidden Keys:** Sensitive keys (like `GROQ_API_KEY`) stay on the backend and are never sent to the browser.
+### Evaluation Methodology & Scope:
+- **Directional Smoke Test ($N=5$):** Designed as a fast CI regression test to catch prompt formatting breakages, not a statistical benchmark.
+- **Decoupled Context:** Evaluates generator adherence given controlled context chunks (`eval/dataset.json`), isolating generator behavior from retrieval variance.
+- **Single-Model Judge:** The generator and judge use the same model (`openai/gpt-oss-120b`). This is a practical, zero-cost sanity check with acknowledged self-preference bias.
 
 ---
 
-## 🛠️ Tech Stack
+## 🗺️ Roadmap & Next Steps
 
-- **Frontend:** React 19, Vite
-- **In-Browser AI:** `@xenova/transformers` (ONNX Web, Web Worker)
-- **Backend:** Node.js, Express
-- **Database:** Supabase (PostgreSQL with `pgvector` & HNSW indexing)
-- **Fast LLM Inference:** Groq (`openai/gpt-oss-120b`)
-- **Streaming:** Server-Sent Events (SSE)
-- **Deployment:** Docker & Docker Compose
+- [ ] **Hybrid Search:** Combine dense vector search with PostgreSQL full-text search (`tsvector` / BM25) using Reciprocal Rank Fusion (RRF).
+- [ ] **Live Retrieval Evaluation:** Measure Hit Rate and Recall@K against real database chunks using Ragas.
+- [ ] **OCR Support:** Add client-side OCR via Tesseract.js for scanned PDF documents.
 
 ---
 
-## 🚀 Quick Setup
+## 🚀 Getting Started
 
-### 1. Clone and Install
+### 1. Clone & Install
 ```bash
 git clone https://github.com/Kulkarnisamruddh/Aura-RAG-Research-assistant.git
 cd Aura-RAG-Research-assistant
@@ -120,12 +127,12 @@ npm install
 ```
 
 ### 2. Environment Variables
-Create a `.env` file from the example:
+Create a `.env` file in the root directory:
 ```bash
 cp .env.example .env
 ```
 
-Add your keys:
+Configure your credentials:
 ```env
 PORT=3001
 VITE_API_URL=http://localhost:3001/api/chat
@@ -135,12 +142,12 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJyour_anon_key
 ```
 
-### 3. Database
-Run the script in [`setup.sql`](setup.sql) in your Supabase SQL Editor to create the required tables, vector index, and functions.
+### 3. Database Setup
+Run the SQL script in [`setup.sql`](setup.sql) in your Supabase SQL Editor to create tables, indexes, RLS policies, and the `match_document_chunks` RPC function.
 
 ### 4. Run Locally
 ```bash
-# Run both Frontend and Backend
+# Run both Frontend and Backend concurrently
 npm run dev:full
 
 # Run Backend only
@@ -153,17 +160,18 @@ npm run dev
 npm run eval
 ```
 
-Open `http://localhost:5173` in your browser.
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3001`
 
 ---
 
 ## 🐳 Docker
 
-Run the entire app using Docker:
+Run the entire application in a container:
 ```bash
 docker compose up --build
 ```
-Open `http://localhost:3001` in your browser.
+Access the application at `http://localhost:3001`.
 
 ---
 
