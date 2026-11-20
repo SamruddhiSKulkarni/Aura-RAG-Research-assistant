@@ -159,7 +159,11 @@ async function runAllEvals() {
   let md = `# 📊 Aura RAG Evaluation Benchmark Report\n\n`;
   md += `**Date:** ${new Date().toISOString()}\n`;
   md += `**Model Evaluated:** \`${RAG_MODEL}\`\n`;
-  md += `**LLM Judge:** \`${RAG_MODEL}\`\n\n`;
+  md += `**LLM Judge:** \`${JUDGE_MODEL}\`\n\n`;
+  md += `> **Methodology & Limitations:**\n`;
+  md += `> - **Scope:** Directional smoke test (N=${total} pairs) intended for fast regression catching, not statistical significance.\n`;
+  md += `> - **Synthetic Context:** Evaluates generator faithfulness and refusal given controlled input; does not measure live pgvector retrieval precision/recall.\n`;
+  md += `> - **Self-Preference Bias:** The judge shares the same model family as the generator, a known heuristic trade-off for zero-cost automated CI checks.\n\n`;
   md += `## Aggregate Performance Metrics\n\n`;
   md += `| Metric | Score | Target Threshold | Status |\n`;
   md += `| :--- | :--- | :--- | :--- |\n`;

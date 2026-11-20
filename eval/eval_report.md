@@ -4,6 +4,11 @@
 **Model Evaluated:** `openai/gpt-oss-120b`
 **LLM Judge:** `openai/gpt-oss-120b`
 
+> **Methodology & Limitations:**
+> - **Scope:** Directional smoke test ($N=5$ pairs) intended for fast regression catching, not statistical significance.
+> - **Synthetic Context:** Evaluates generator faithfulness and refusal given controlled input; does not measure live pgvector retrieval precision/recall.
+> - **Self-Preference Bias:** The judge shares the same model family as the generator (`openai/gpt-oss-120b`), an acknowledged trade-off for zero-cost automated CI checks.
+
 ## Aggregate Performance Metrics
 
 | Metric | Score | Target Threshold | Status |

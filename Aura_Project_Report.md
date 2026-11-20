@@ -22,10 +22,11 @@ Aura is a full-stack **Retrieval-Augmented Generation (RAG)** application. It al
 ## 2. Technical Deep Dive
 
 ### A. The Embedding Pipeline (The "A" in RAG)
-Instead of using expensive APIs like OpenAI for embeddings, Aura generates them **on the backend** using a local quantized model.
-- **Model:** `Xenova/all-MiniLM-L6-v2`.
+Instead of paying for third-party embedding APIs or running memory-heavy transformer models on a resource-constrained server, Aura offloads embedding generation directly to the client browser.
+- **Model:** `Xenova/all-MiniLM-L6-v2` (quantized ONNX).
 - **Dimensions:** 384.
-- **Optimization (Edge Computing):** To support deployment on limited-resource servers (like Render Free Tier), Aura uses **Browser-Side Embeddings**. The AI model is downloaded and executed in the user's browser via Web Workers. This ensures the backend remains lightweight, avoids memory crashes, and scales infinitely with the number of users.
+- **Constrained-Cost Edge Architecture:** The embedding model executes inside the user's browser via a dedicated Web Worker using `@xenova/transformers`. This eliminates Node.js server RAM pressure on free-tier hosting (e.g., Render's 512MB RAM cap), guarantees zero server-side embedding compute costs, and prevents OOM crashes under concurrent traffic.
+- **Documented Trade-offs:** Initial ~23 MB client-side download latency on first visit; client hardware dictates embedding speed; model updates require frontend redeployment rather than an invisible backend migration.
 
 ### B. Vector Search & Storage
 Document chunks are stored in a PostgreSQL table with a `vector` column type.
@@ -53,6 +54,15 @@ The backend is stateless. It does not store sessions in memory; it relies on JWT
 ---
 
 ## 4. Potential Interview Questions & Answers
+
+### Q: Why run embeddings in the browser instead of the backend? Is that truly production-ready?
+**A:** "Calling it 'production-ready' would be overselling it; it is an intentional, **constrained-cost architecture with documented trade-offs**. On a free-tier Node.js server (e.g., Render's 512MB RAM cap), running PyTorch or in-memory ONNX models causes immediate out-of-memory crashes under concurrent load. Offloading `all-MiniLM-L6-v2` (~23MB) to a client Web Worker eliminates server memory overhead entirely. The clear trade-offs: the user pays an initial network download penalty, client CPU/GPU drives latency, and model upgrades require a frontend build rather than an atomic backend migration."
+
+### Q: Your eval harness uses the same LLM as the generator. Doesn't that introduce self-preference bias?
+**A:** "Yes, absolutely. LLMs have a documented self-preference bias when judging their own outputs. In this project, the evaluation suite is an automated **directional smoke test ($N=5$)** designed for CI regression testing—not a statistically valid benchmark. It serves as a fast, zero-cost sanity check to catch prompt breakages, hallucinated out-of-domain answers, or missing citation tags before merging code. In a scaled deployment, we would decouple the judge using a distinct, higher-parameter frontier model or human ratings and run a larger dataset (e.g., via Ragas) to calculate statistically sound metrics."
+
+### Q: Why does the eval suite run on synthetic context rather than live Supabase vector retrieval?
+**A:** "To intentionally decouple **generation evaluation** from **retrieval evaluation**. In an end-to-end RAG pipeline, a bad response can come from two distinct places: poor retrieval (missing chunks, high noise) or poor synthesis (hallucinations despite relevant context). Feeding synthetic context tests the LLM's adherence to guardrails and citations under controlled conditions. Evaluating the retrieval layer independently would require measuring Recall@K, Context Precision, and MRR against a curated database corpus."
 
 ### Q: Why use fixed-size chunks instead of whole documents?
 **A:** "LLMs have a context window limit (e.g., 128k tokens). By chunking text into 300-word segments, we can retrieve only the *most relevant* pieces of information, saving tokens and improving the focus of the answer."

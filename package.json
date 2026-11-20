@@ -2,7 +2,7 @@
   "name": "rag-assistant",
   "private": true,
   "version": "1.0.0",
-  "description": "Aura: A high-performance, secure agentic RAG assistant for researchers.",
+  "description": "Aura: A cost-constrained RAG research assistant featuring browser-side embeddings, pgvector storage, and streaming generation.",
   "author": "Samruddh Kulkarni (Final year AI&DS student, MIT Chhatrapati Sambhajinagar)",
   "type": "module",
   "scripts": {
