@@ -75,7 +75,14 @@ The backend is stateless. It does not store sessions in memory; it relies on JWT
 
 ---
 
-## 5. Future Roadmap
+## 5. Resume & Portfolio Bullet Point
+
+**Aura — Browser-Embedded RAG Research Assistant**
+- Built a cost-constrained RAG architecture with browser-side embeddings, pgvector/HNSW retrieval, citation guardrails, and a lightweight LLM-as-judge eval harness (n=5, directional); documented trade-offs and migration path to server-side embeddings and hybrid search.
+
+---
+
+## 6. Future Roadmap
 1. **RAG Evaluation:** Implementing a framework like Ragas to measure retrieval precision.
 2. **Hybrid Search:** Combining vector search with traditional Keyword Search (BM25) for better accuracy on technical terms.
 3. **Multi-Modal:** Adding OCR support for scanned PDFs via Tesseract.js.
