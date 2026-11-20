@@ -2,7 +2,7 @@
 
 This document provides a deep dive into the architecture, design decisions, and engineering trade-offs made during the development of **Aura**.
 
-**Developed By:** Samruddhi Kulkarni (Final year AI&DS student, MIT Chhatrapati Sambhajinagar)
+**Developed By:** Samruddh Kulkarni (AI & Data Science Graduate, MIT Chhatrapati Sambhajinagar)
 
 ---
 
